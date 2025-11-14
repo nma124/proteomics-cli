@@ -14,7 +14,7 @@ A unified command-line tool for automated proteomics PRM (Parallel Reaction Moni
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/proteomics-cli.git
+git clone https://github.com/nma124/proteomics-cli.git
 cd proteomics-cli
 
 # Install dependencies
