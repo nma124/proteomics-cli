@@ -119,7 +119,7 @@ class PRMDataProcessor:
         """
         mode = self.get_processing_mode()
         
-        print(f"🔧 Processing mode: {mode}")
+        print(f"Processing mode: {mode}")
         print(f"   • Light/Heavy pairs: {self.has_pairs}")
         print(f"   • Multiple conditions: {self.has_conditions}")
         print(f"   • Concentration columns: {len(self.format_type['concentration_columns'])}")
@@ -144,7 +144,7 @@ class PRMDataProcessor:
     def _process_single_basic(self, output_file: str) -> pd.DataFrame:
         """Process single peptides without conditions (basic format)."""
         # This is a simplified version for basic single-peptide analysis
-        print("⚠️  Using basic single-peptide processing (no conditions)")
+        print("[Warning] Using basic single-peptide processing (no conditions)")
         print("    If you have experimental conditions, update replicate naming.")
         
         # Use JPT processor but it will treat all as one condition
@@ -154,20 +154,20 @@ class PRMDataProcessor:
     def print_format_summary(self):
         """Print detected format information."""
         print("\n" + "="*70)
-        print("📋 DATA FORMAT SUMMARY")
+        print("DATA FORMAT SUMMARY")
         print("="*70)
         print(f"MS measurements: {len(self.ms_df)} rows")
         print(f"Peptides: {self.ms_df['peptide'].nunique()}")
         print(f"Replicates: {self.ms_df['replicate'].nunique()}")
         
-        print(f"\n🔍 Format Detection:")
-        print(f"   • Light/Heavy pairs: {'Yes ✓' if self.has_pairs else 'No ✗'}")
-        print(f"   • Multiple conditions: {'Yes ✓' if self.has_conditions else 'No ✗'}")
+        print(f"\nFormat Detection:")
+        print(f"   - Light/Heavy pairs: {'Yes' if self.has_pairs else 'No'}")
+        print(f"   - Multiple conditions: {'Yes' if self.has_conditions else 'No'}")
         print(f"   • Dilution points: {len(self.format_type['concentration_columns'])}")
         print(f"   • Sample replicate: {self.format_type['replicate_pattern']}")
         
         mode = self.get_processing_mode()
-        print(f"\n🎯 Selected processing mode: {mode.upper().replace('_', ' ')}")
+        print(f"\nSelected processing mode: {mode.upper().replace('_', ' ')}")
         
         if mode == 'paired_ratio':
             print("   → Will calculate heavy/light area ratios")

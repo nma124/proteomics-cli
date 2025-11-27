@@ -42,20 +42,20 @@ def main():
     output_path = Path(args.output)
     
     if not ms_path.exists():
-        print(f"❌ Error: MS data file not found: {ms_path}")
+        print(f"[Error] MS data file not found: {ms_path}")
         sys.exit(1)
     
     if not conc_path.exists():
-        print(f"❌ Error: Concentration data file not found: {conc_path}")
+        print(f"[Error] Concentration data file not found: {conc_path}")
         sys.exit(1)
     
     # Header
     print("="*70)
     print("UNIFIED PROTEOMICS PRM DATA PROCESSING")
     print("="*70)
-    print(f"📁 MS data: {ms_path.name}")
-    print(f"📁 Concentration data: {conc_path.name}")
-    print(f"💾 Output: {output_path}")
+    print(f"MS data: {ms_path.name}")
+    print(f"Concentration data: {conc_path.name}")
+    print(f"Output: {output_path}")
     
     try:
         # Process using unified processor (auto-detects format)
@@ -63,14 +63,14 @@ def main():
         
         # Success message
         print("\n" + "="*70)
-        print("✅ PROCESSING COMPLETE")
+        print("PROCESSING COMPLETE")
         print("="*70)
-        print(f"📊 Output: {result_df.shape[0]} rows × {result_df.shape[1]} columns")
-        print(f"💾 Saved to: {output_path}")
-        print("\n✨ Processing completed successfully!\n")
+        print(f"Output: {result_df.shape[0]} rows x {result_df.shape[1]} columns")
+        print(f"Saved to: {output_path}")
+        print("\nProcessing completed successfully!\n")
         
     except Exception as e:
-        print(f"\n❌ Error during processing: {e}")
+        print(f"\n[Error] during processing: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

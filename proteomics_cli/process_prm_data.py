@@ -380,7 +380,7 @@ def main():
     # Print summary statistics
     print(f"\n=== SUMMARY ===")
     print(f"Output file: {output_file}")
-    print(f"Shape: {result_df.shape[0]} rows × {result_df.shape[1]} columns")
+    print(f"Shape: {result_df.shape[0]} rows x {result_df.shape[1]} columns")
     print(f"Columns: {list(result_df.columns)}")
     print(f"Peptides processed: {result_df['peptide'].nunique()}")
     print(f"Fragment ions: {result_df['fragment ion'].nunique()}")

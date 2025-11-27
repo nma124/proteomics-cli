@@ -210,24 +210,24 @@ def process_jpt_data(ms_file: str, conc_file: str, output_file: str):
     Returns:
         DataFrame with per-fragment regression results and QC metrics
     """
-    print("📂 Loading JPT data files...")
+    print("Loading JPT data files...")
     
     # Load MS data
     ms_df = pd.read_csv(ms_file)
     ms_df.columns = ms_df.columns.str.lower().str.strip()
-    print(f"   ✓ MS data: {len(ms_df)} measurements")
+    print(f"   - MS data: {len(ms_df)} measurements")
     
     # Load concentration data
     conc_long = load_concentration_data(conc_file)
-    print(f"   ✓ Concentration data: {len(conc_long)} timepoint measurements")
+    print(f"   - Concentration data: {len(conc_long)} timepoint measurements")
     
     # Aggregate MS data
-    print("\n🔧 Processing MS data...")
+    print("\nProcessing MS data...")
     ms_agg = aggregate_ms_by_condition(ms_df)
-    print(f"   ✓ Aggregated: {len(ms_agg)} peptide-condition-fragment combinations")
+    print(f"   - Aggregated: {len(ms_agg)} peptide-condition-fragment combinations")
     
     # Merge with concentration data
-    print("\n🔧 Merging with concentration data...")
+    print("\nMerging with concentration data...")
     ms_agg['day'] = pd.to_numeric(ms_agg['day'], errors='coerce')
     
     conc_merge = conc_long.rename(columns={'Peptides': 'peptide'}).copy()
@@ -238,17 +238,17 @@ def process_jpt_data(ms_file: str, conc_file: str, output_file: str):
         on=['peptide', 'day'],
         how='left'
     )
-    print(f"   ✓ Merged: {len(merged)} rows with concentration data")
+    print(f"   - Merged: {len(merged)} rows with concentration data")
     
     # Remove rows with missing concentration
     merged = merged.dropna(subset=['concentration_ng_mL'])
-    print(f"   ✓ After filtering: {len(merged)} rows with valid concentrations")
+    print(f"   - After filtering: {len(merged)} rows with valid concentrations")
     
     # Create regression category
     merged['regression_category'] = merged.apply(create_regression_category, axis=1)
     
     # Fit regressions for each category
-    print("\n🔧 Computing regression metrics...")
+    print("\nComputing regression metrics...")
     regression_categories = merged['regression_category'].unique()
     regression_results = []
     
@@ -264,13 +264,13 @@ def process_jpt_data(ms_file: str, conc_file: str, output_file: str):
         })
     
     regression_df = pd.DataFrame(regression_results)
-    print(f"   ✓ Fitted {len(regression_df)} fragment/condition regressions")
+    print(f"   - Fitted {len(regression_df)} fragment/condition regressions")
     
     # Merge regression metrics back into main data
     final_df = merged.merge(regression_df, on='regression_category', how='left')
     
     # Aggregate regression metrics by fragment/condition
-    print("\n🔧 Aggregating QC metrics...")
+    print("\nAggregating QC metrics...")
     agg_qc = final_df.groupby('regression_category').apply(
         aggregate_regression_metrics
     ).reset_index()
@@ -278,8 +278,8 @@ def process_jpt_data(ms_file: str, conc_file: str, output_file: str):
     final_df = final_df.merge(agg_qc, on='regression_category', how='left')
     
     # Save results
-    print(f"\n💾 Writing output to {pathlib.Path(output_file).name}")
+    print(f"\nWriting output to {pathlib.Path(output_file).name}")
     final_df.to_csv(output_file, index=False)
-    print(f"   ✓ Saved {len(final_df)} rows")
+    print(f"   - Saved {len(final_df)} rows")
     
     return final_df
