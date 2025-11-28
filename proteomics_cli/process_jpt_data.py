@@ -8,7 +8,7 @@ Processes JPT mass spectrometry and peptide concentration data:
 3. Extracts experimental conditions from replicate names
 4. Aggregates MS intensities by peptide/condition/fragment
 5. Merges with concentration data for calibration
-6. Computes regression metrics (R², slope, intercept, CV)
+6. Computes regression metrics (R2, slope, intercept, CV)
 7. Generates comprehensive QC report
 
 Based on the heavy_1st processing pipeline.
@@ -27,7 +27,7 @@ def extract_conditions_from_replicate(replicate_col: pd.Series) -> pd.DataFrame:
     """
     Parse experimental metadata from replicate names.
     
-    Example: D1_Soroush_cyto_W_column10_2uL_52 →
+    Example: D1_Soroush_cyto_W_column10_2uL_52 ->
       - day: 1
       - condition: cyto
       - wash_type: W
@@ -117,7 +117,7 @@ def create_regression_category(row):
     Create a grouping key for regression analysis.
     
     Format: peptide_condition_fragment_ion_charged
-    This ensures each unique fragment/charge/condition combo gets its own R².
+    This ensures each unique fragment/charge/condition combo gets its own R2.
     """
     return '_'.join([
         row['peptide'],

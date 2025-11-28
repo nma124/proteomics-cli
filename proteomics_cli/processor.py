@@ -120,9 +120,9 @@ class PRMDataProcessor:
         mode = self.get_processing_mode()
         
         print(f"Processing mode: {mode}")
-        print(f"   • Light/Heavy pairs: {self.has_pairs}")
-        print(f"   • Multiple conditions: {self.has_conditions}")
-        print(f"   • Concentration columns: {len(self.format_type['concentration_columns'])}")
+        print(f"   - Light/Heavy pairs: {self.has_pairs}")
+        print(f"   - Multiple conditions: {self.has_conditions}")
+        print(f"   - Concentration columns: {len(self.format_type['concentration_columns'])}")
         
         if mode == 'paired_ratio':
             return self._process_paired_ratio(output_file)
@@ -163,21 +163,21 @@ class PRMDataProcessor:
         print(f"\nFormat Detection:")
         print(f"   - Light/Heavy pairs: {'Yes' if self.has_pairs else 'No'}")
         print(f"   - Multiple conditions: {'Yes' if self.has_conditions else 'No'}")
-        print(f"   • Dilution points: {len(self.format_type['concentration_columns'])}")
-        print(f"   • Sample replicate: {self.format_type['replicate_pattern']}")
+        print(f"   - Dilution points: {len(self.format_type['concentration_columns'])}")
+        print(f"   - Sample replicate: {self.format_type['replicate_pattern']}")
         
         mode = self.get_processing_mode()
         print(f"\nSelected processing mode: {mode.upper().replace('_', ' ')}")
         
         if mode == 'paired_ratio':
-            print("   → Will calculate heavy/light area ratios")
-            print("   → Regression: area_ratio ~ heavy_concentration")
+            print("   -> Will calculate heavy/light area ratios")
+            print("   -> Regression: area_ratio ~ heavy_concentration")
         elif mode == 'single_intensity':
-            print("   → Will aggregate intensities by condition")
-            print("   → Regression: intensity ~ concentration (per condition)")
+            print("   -> Will aggregate intensities by condition")
+            print("   -> Regression: intensity ~ concentration (per condition)")
         else:
-            print("   → Will process as single peptide intensities")
-            print("   → Regression: intensity ~ concentration")
+            print("   -> Will process as single peptide intensities")
+            print("   -> Regression: intensity ~ concentration")
 
 
 def process_prm_unified(ms_file: str, concentration_file: str, output_file: str) -> pd.DataFrame:

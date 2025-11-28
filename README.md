@@ -4,11 +4,11 @@ A unified command-line tool for automated proteomics PRM (Parallel Reaction Moni
 
 ## Features
 
-- 🔍 **Automatic Format Detection** - Intelligently detects data format and processing mode
-- 📊 **Multiple Format Support** - Handles heavy/light paired peptides and single intensity measurements
-- 📈 **Statistical Analysis** - Linear regression with R², CV, and Q-test metrics
-- ⚡ **Fast Processing** - Optimized pipeline for large datasets
-- 🎯 **No Configuration Required** - Just point to your data files
+- **Automatic Format Detection** - Intelligently detects data format and processing mode
+- **Multiple Format Support** - Handles heavy/light paired peptides and single intensity measurements
+- **Statistical Analysis** - Linear regression with R2, CV, and Q-test metrics
+- **Fast Processing** - Optimized pipeline for large datasets
+- **No Configuration Required** - Just point to your data files
 
 ## Installation
 
@@ -80,7 +80,7 @@ The tool automatically selects the appropriate processing mode:
 **Processing:**
 - Calculates area ratios (heavy/light)
 - Fits linear regression: `area_ratio ~ concentration`
-- Computes per-fragment R², CV, and Q-test statistics
+- Computes per-fragment R2, CV, and Q-test statistics
 
 ### 2. Single Intensity Mode
 **Triggered when:** No pairs, but experimental conditions detected
@@ -100,7 +100,7 @@ The tool automatically selects the appropriate processing mode:
 ## Output
 
 Results are saved as a CSV file containing:
-- Regression metrics (R², slope, intercept)
+- Regression metrics (R2, slope, intercept)
 - Aggregated statistics (mean, std, CV)
 - QC metrics (Q-test values)
 - Per-fragment analysis results
