@@ -40,11 +40,13 @@ ENV/
 htmlcov/
 *.cover
 
-# Data files (uncomment if you want to exclude data)
-# *.csv
-# data/
+# Data files
+*.csv
+input/
+data/
 
 # Output files
-prm_analysis_output.csv
-*_output.csv
+plots/
 results/
+*_output.csv
+prm_analysis_output.csv
