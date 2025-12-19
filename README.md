@@ -45,7 +45,7 @@ python main.py \
 ## Usage
 
 ```
-python main.py [-h] [--version] [-o OUTPUT] [-p] [--plot-dir PLOT_DIR] ms_file concentration_file
+python main.py [-h] [--version] [-o OUTPUT] [-p] [--plot-dir PLOT_DIR] [-c CONFIG] ms_file concentration_file
 
 Positional arguments:
   ms_file              Path to mass spectrometry data CSV (Skyline PRM export)
@@ -57,6 +57,7 @@ Optional arguments:
   -o, --output OUTPUT  Output CSV file path (default: prm_analysis_output.csv)
   -p, --plot           Generate calibration curve plots
   --plot-dir PLOT_DIR  Directory for plot outputs (default: plots)
+  -c, --config CONFIG  Path to YAML configuration file (optional)
 ```
 
 ## Input File Requirements
@@ -209,4 +210,29 @@ Each group's R² is calculated separately, then aggregated.
 Fragment ions with different charges are treated as separate entities:
 - `b7_1+` and `b7_2+` get different regressions
 - Each charge state has its own R² values
+
+## Configuration (Advanced)
+
+The tool supports custom configurations for different replicate naming schemes:
+
+```bash
+# Use custom configuration
+python main.py ms_data.csv concentrations.csv -o results.csv -c my_config.yaml
+```
+
+Configuration files allow you to customize:
+- Replicate name delimiter (e.g., `_`, `-`, `.`)
+- Position of replicate number in name
+- Replicate group ranges
+- Special baseline prefixes
+
+**Example config for sequential numbering (1-4, 5-8, 9-12):**
+```yaml
+replicate_groups:
+  - [1, 4]
+  - [5, 8]
+  - [9, 12]
+```
+
+See `CONFIG_GUIDE.md` for detailed documentation and more examples.
 
