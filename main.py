@@ -1,24 +1,22 @@
 #!/usr/bin/env python3
 """
-Unified Proteomics PRM Data Processing CLI
+Proteomics PRM Paired Ratio Analysis
 
-General-purpose interface that automatically detects and processes:
-- Heavy/Light paired peptide formats
-- Single peptide intensity formats (with/without conditions)
-- Any future format variations
+Processes Skyline PRM export with heavy/light isotope pairs.
+Calculates area ratios and performs linear regression per replicate group.
 """
 
 import sys
 import argparse
 from pathlib import Path
 
-from proteomics_cli.processor import process_prm_unified
+from proteomics_cli.process_prm_data import process_prm_data
 
 
 def main():
-    """Unified CLI with automatic format detection."""
+    """CLI for paired ratio PRM analysis."""
     parser = argparse.ArgumentParser(
-        description="Unified Proteomics PRM Data Processor - Handles any Skyline export format",
+        description="Proteomics PRM Paired Ratio Processor - Heavy/Light isotope analysis",
         epilog="Example: python main.py ms_data.csv concentrations.csv -o results.csv",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -30,9 +28,15 @@ def main():
     parser.add_argument("-o", "--output", 
                        default="prm_analysis_output.csv", 
                        help="Output CSV file path (default: prm_analysis_output.csv)")
+    parser.add_argument("-p", "--plot",
+                       action="store_true",
+                       help="Generate calibration curve plots after processing")
+    parser.add_argument("--plot-dir",
+                       default="plots",
+                       help="Directory for plot outputs (default: plots)")
     parser.add_argument("--version", 
                        action="version", 
-                       version="Unified PRM Processing v2.0.0")
+                       version="PRM Paired Ratio Processing v3.0.0")
     
     args = parser.parse_args()
     
@@ -51,15 +55,15 @@ def main():
     
     # Header
     print("="*70)
-    print("UNIFIED PROTEOMICS PRM DATA PROCESSING")
+    print("PROTEOMICS PRM PAIRED RATIO ANALYSIS")
     print("="*70)
     print(f"MS data: {ms_path.name}")
     print(f"Concentration data: {conc_path.name}")
     print(f"Output: {output_path}")
     
     try:
-        # Process using unified processor (auto-detects format)
-        result_df = process_prm_unified(str(ms_path), str(conc_path), str(output_path))
+        # Process using paired ratio analysis
+        result_df = process_prm_data(str(ms_path), str(conc_path), str(output_path))
         
         # Success message
         print("\n" + "="*70)
@@ -67,6 +71,17 @@ def main():
         print("="*70)
         print(f"Output: {result_df.shape[0]} rows x {result_df.shape[1]} columns")
         print(f"Saved to: {output_path}")
+        
+        # Generate plots if requested
+        if args.plot:
+            from proteomics_cli.plot_results import generate_plots
+            generate_plots(
+                ms_file=str(ms_path),
+                concentration_file=str(conc_path),
+                results_csv=str(output_path),
+                output_dir=args.plot_dir
+            )
+        
         print("\nProcessing completed successfully!\n")
         
     except Exception as e:

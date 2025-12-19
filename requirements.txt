@@ -6,3 +6,6 @@ numpy>=1.21.0
 
 # Machine learning and statistics  
 scikit-learn>=1.0.0
+
+# Visualization
+matplotlib>=3.3.0

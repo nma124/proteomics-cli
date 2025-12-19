@@ -1,89 +1,123 @@
 #!/usr/bin/env python3
 """
-Proteomics PRM Data Processing Script
+Proteomics PRM Paired Ratio Data Processing
 
-Processes Skyline PRM export data with heavy peptide dilution scheme to produce 
-quantification results with regression analysis and quality control metrics.
+Processes Skyline PRM export data with heavy/light peptide pairs.
+Calculates area ratios and performs linear regression per replicate group.
 
-Based on the analysis pipeline from notebook 005-ms-peggy-2-update.ipynb
+Key concept: Each fragment has 4 replicate groups that are independently analyzed,
+then aggregated for final statistics.
 """
 
 import pandas as pd
 import numpy as np
 from sklearn import linear_model, metrics
-import pathlib
 import warnings
-import re
 
-# Suppress sklearn warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
 
-def fix_dilution(row: str):
-    """Fix dilution numbering"""
-    str_to_check = row.split('_')[0]
-    if len(str_to_check) == 1:
-        dilution = 'D' + row
-    else:
-        dilution = row
-    return dilution
 
-def grp_area_ratio_n_area_cols(grouped_df: pd.DataFrame):
-    """Compute the ratio of areas with higher precursor mz value as numerator."""
+def get_replicate_number(replicate_name: str) -> int:
+    """
+    Extract the last number from replicate name.
+    
+    Example: 'D1_2ul_24' -> 24
+    """
+    try:
+        return int(replicate_name.split('_')[-1])
+    except (ValueError, IndexError):
+        return 0
+
+
+def get_replicate_group(replicate_number: int) -> int:
+    """
+    Assign replicate group based on replicate number.
+    
+    Groups:
+    - Group 1: 7-14
+    - Group 2: 17-24
+    - Group 3: 27-34
+    - Group 4: 37-44
+    
+    Returns:
+        int: Group number (1-4), or 0 if outside known ranges
+    """
+    if 7 <= replicate_number <= 14:
+        return 1
+    elif 17 <= replicate_number <= 24:
+        return 2
+    elif 27 <= replicate_number <= 34:
+        return 3
+    elif 37 <= replicate_number <= 44:
+        return 4
+    else:
+        # For other ranges, try to infer pattern
+        return ((replicate_number - 7) // 10) + 1
+
+
+def get_dilution_from_replicate(replicate_name: str) -> str:
+    """
+    Extract dilution identifier from replicate name.
+    
+    Example: 'D1_2ul_14' -> 'D1'
+             'col_test_7' -> 'D0'
+    """
+    str_to_check = replicate_name.split('_')[0]
+    if str_to_check.startswith('col'):
+        return 'D0'
+    return str_to_check
+
+
+def get_fragment_ion_with_charge(row) -> str:
+    """
+    Create fragment ion identifier with charge.
+    
+    Example: fragment='b5', charge=2 -> 'b5_2+'
+    """
+    frag = row.get('fragment ion', '')
+    pc = row.get('product charge', '')
+    try:
+        z = int(float(pc))
+        return f"{frag}_{z}+"
+    except (ValueError, TypeError):
+        return str(frag)
+
+
+def calculate_area_ratio(grouped_df: pd.DataFrame) -> pd.Series:
+    """
+    Calculate heavy/light area ratio for a paired measurement.
+    
+    Assumes two precursor m/z values per group:
+    - Lower m/z = light
+    - Higher m/z = heavy
+    
+    Ratio = heavy_area / light_area
+    """
     df = grouped_df[['precursor mz', 'area']].copy()
     df = df.sort_values(by='precursor mz', ascending=True)
     
     if len(df) < 2:
-        return pd.Series({'area_ratio': np.nan, 'area_min': np.nan, 'area_max': np.nan})
+        return pd.Series({'area_ratio': np.nan, 'light_area': np.nan, 'heavy_area': np.nan})
     
-    area_ratio = df['area'].iloc[1] / df['area'].iloc[0] if df['area'].iloc[0] != 0 else np.inf
-    area_min, area_max = df['area'].iloc[0], df['area'].iloc[1]
-
-    col_vals = {'area_ratio': area_ratio, 'area_min': area_min, 'area_max': area_max}
-    return pd.Series(col_vals)
-
-def get_dilution_from_replicate(rep_string: str):
-    """Get the dilution symbol from the replicate name."""
-    str_to_check = rep_string.split('_')[0]
-    if str_to_check.startswith('col'):
-        dilution = 'D0'
-    else:
-        dilution = str_to_check
-    return dilution
-
-def get_peptide_dilution_comb(row):
-    """Function to create a new column from peptide and dilution name."""
-    peptide = row['peptide']
-    replicate = row['replicate']
-    dilution = get_dilution_from_replicate(rep_string=replicate)
-    return peptide + '_' + dilution
-
-
-def get_fragment_ion_with_charge(row):
-    """Return fragment ion name annotated with product charge (e.g., b7_2+)."""
-    frag = row.get('fragment ion')
-    pc = row.get('product charge')
-    try:
-        z = int(float(pc))
-        return f"{frag}_{z}+"
-    except Exception:
-        return frag
-def get_rep_plot_cat(row):
-    """Get the plot category (peptide + fragment ion with charge)."""
-    peptide = row['peptide']
-    fragment_ion_charged = get_fragment_ion_with_charge(row)
-    cat_name = '_'.join([peptide, fragment_ion_charged])
-    return cat_name
-
-def get_linear_fit(data: pd.DataFrame, plot_cat: str):
-    """Get linear regression fit parameters for a plot category."""
-    cat_data = data[data['plot_cat'] == plot_cat]
+    light_area = df['area'].iloc[0]
+    heavy_area = df['area'].iloc[1]
     
-    if len(cat_data) < 2:
-        return (np.nan, np.nan, np.nan)
+    area_ratio = heavy_area / light_area if light_area != 0 else np.inf
     
-    x = cat_data['area_ratio'].values
-    y = cat_data['heavy_conc'].values
+    return pd.Series({
+        'area_ratio': area_ratio,
+        'light_area': light_area,
+        'heavy_area': heavy_area
+    })
+
+
+def fit_linear_regression(x: np.ndarray, y: np.ndarray) -> tuple:
+    """
+    Fit linear regression and return metrics.
     
+    Returns:
+        (r2, intercept, slope) or (NaN, NaN, NaN) if insufficient data
+    """
     # Remove infinite and NaN values
     valid_mask = np.isfinite(x) & np.isfinite(y)
     x = x[valid_mask]
@@ -91,306 +125,229 @@ def get_linear_fit(data: pd.DataFrame, plot_cat: str):
     
     if len(x) < 2:
         return (np.nan, np.nan, np.nan)
-
+    
     x = x[:, np.newaxis]
     y = y[:, np.newaxis]
+    
+    try:
+        model = linear_model.LinearRegression()
+        model.fit(x, y)
+        y_fit = model.predict(x)
+        
+        r2 = metrics.r2_score(y, y_fit)
+        intercept = model.intercept_.squeeze()
+        slope = model.coef_[0].squeeze()
+        
+        return (r2, intercept, slope)
+    except Exception:
+        return (np.nan, np.nan, np.nan)
 
-    model = linear_model.LinearRegression()
-    model.fit(x, y)
-    y_fit = model.predict(x)
 
-    r2 = metrics.r2_score(y, y_fit)
-    intercept = model.intercept_.squeeze()
-    grad = model.coef_[0].squeeze()
-
-    return (r2, intercept, grad)
-
-def get_fit_param_cat(row):
-    """Get the fit param category."""
-    replicate = row['replicate']
-    peptide = row['peptide']
-
-    rep_elements = replicate.split('_')[1:3]
-    cat_name = [peptide] + rep_elements
-    cat_name = '_'.join(cat_name)
-    return cat_name
-
-def qtest(data, right=True):
-    """Simple Q-test implementation."""
+def qtest(data: np.ndarray, right: bool = True) -> float:
+    """
+    Dixon's Q-test for outlier detection.
+    
+    Args:
+        data: Array of values
+        right: If True, test right tail; if False, test left tail
+    
+    Returns:
+        Q-statistic value
+    """
     sorted_data = sorted(data)
     
     if len(sorted_data) < 2:
         return 0.0
-
+    
     if right:
         gap = sorted_data[-1] - sorted_data[-2]
     else:
         gap = sorted_data[1] - sorted_data[0]
-
-    try:
-        range_val = sorted_data[-1] - sorted_data[0]
-        q_val = gap / range_val if range_val != 0 else gap
-    except ZeroDivisionError:
-        q_val = gap
-
+    
+    range_val = sorted_data[-1] - sorted_data[0]
+    q_val = gap / range_val if range_val != 0 else gap
+    
     return q_val
 
-def get_grp_fit_agg(grouped_df: pd.DataFrame):
-    """Get the aggregate values for each group."""
-    df = grouped_df[['intercept', 'gradient', 'R2']].copy()
-    
-    # Convert to numeric and handle mixed types
-    df['gradient'] = pd.to_numeric(df['gradient'], errors='coerce')
-    df['intercept'] = pd.to_numeric(df['intercept'], errors='coerce')
-    df['R2'] = pd.to_numeric(df['R2'], errors='coerce')
-    
-    gradient = df['gradient'].dropna().values
-    intercept = df['intercept'].dropna().values
-    r2 = df['R2'].dropna().values
 
-    # Additional check for finite values
-    try:
-        gradient = gradient[np.isfinite(gradient)]
-    except TypeError:
-        gradient = gradient[~pd.isna(gradient)]  # fallback for mixed types
-    
-    try:
-        intercept = intercept[np.isfinite(intercept)]
-    except TypeError:
-        intercept = intercept[~pd.isna(intercept)]
-    
-    try:
-        r2 = r2[np.isfinite(r2)]
-    except TypeError:
-        r2 = r2[~pd.isna(r2)]
-
-    mean_grad = gradient.mean() if len(gradient) > 0 else np.nan
-    stdv_grad = gradient.std() if len(gradient) > 1 else np.nan
-    cov_grad = stdv_grad / mean_grad if mean_grad != 0 else np.nan
-    qtest_grad_right = qtest(gradient, right=True) if len(gradient) > 1 else 0.0
-
-    mean_intercept = intercept.mean() if len(intercept) > 0 else np.nan
-    stdv_intercept = intercept.std() if len(intercept) > 1 else np.nan
-    cov_intercept = stdv_intercept / mean_intercept if mean_intercept != 0 else np.nan
-    qtest_intercept_right = qtest(intercept, right=True) if len(intercept) > 1 else 0.0
-
-    mean_r2 = r2.mean() if len(r2) > 0 else np.nan
-    stdv_r2 = r2.std() if len(r2) > 1 else np.nan
-    cov_r2 = stdv_r2 / mean_r2 if mean_r2 != 0 else np.nan
-    qtest_r2_right = qtest(r2, right=True) if len(r2) > 1 else 0.0
-
-    cols_dict = {
-        'mean_grad': mean_grad, 'stdv_grad': stdv_grad,
-        'cov_grad': cov_grad, 'qtest_grad': qtest_grad_right,
-        'mean_intercept': mean_intercept, 'stdv_intercept': stdv_intercept,
-        'cov_intercept': cov_intercept, 'qtest_intercept': qtest_intercept_right,
-        'mean_r2': mean_r2, 'stdv_r2': stdv_r2,
-        'cov_r2': cov_r2, 'qtest_r2': qtest_r2_right
-    }
-
-    return pd.Series(cols_dict)
-
-def process_prm_data(skyline_file: str, dilution_file: str, output_file: str):
+def aggregate_regression_metrics(grouped_df: pd.DataFrame) -> pd.Series:
     """
-    Main processing function to analyze PRM data.
+    Aggregate regression metrics across replicate groups.
+    
+    Computes mean, std, CV, and Q-test for R2, slope, and intercept.
+    """
+    # Convert to numeric and filter
+    r2_vals = pd.to_numeric(grouped_df['r2'], errors='coerce').dropna().values
+    r2_vals = r2_vals[np.isfinite(r2_vals)]
+    
+    slope_vals = pd.to_numeric(grouped_df['slope'], errors='coerce').dropna().values
+    slope_vals = slope_vals[np.isfinite(slope_vals)]
+    
+    intercept_vals = pd.to_numeric(grouped_df['intercept'], errors='coerce').dropna().values
+    intercept_vals = intercept_vals[np.isfinite(intercept_vals)]
+    
+    def safe_stats(vals):
+        if len(vals) == 0:
+            return np.nan, np.nan, np.nan, np.nan
+        mean = float(np.mean(vals))
+        std = float(np.std(vals))
+        cv = (std / mean * 100) if mean != 0 else np.nan
+        q = qtest(vals, right=True) if len(vals) >= 3 else np.nan
+        return mean, std, cv, q
+    
+    r2_mean, r2_std, r2_cv, r2_q = safe_stats(r2_vals)
+    slope_mean, slope_std, slope_cv, slope_q = safe_stats(slope_vals)
+    intercept_mean, intercept_std, intercept_cv, intercept_q = safe_stats(intercept_vals)
+    
+    return pd.Series({
+        'mean_r2': r2_mean,
+        'std_r2': r2_std,
+        'cv_r2': r2_cv,
+        'q_r2': r2_q,
+        'mean_slope': slope_mean,
+        'std_slope': slope_std,
+        'cv_slope': slope_cv,
+        'q_slope': slope_q,
+        'mean_intercept': intercept_mean,
+        'std_intercept': intercept_std,
+        'cv_intercept': intercept_cv,
+        'q_intercept': intercept_q,
+        'n_groups': len(grouped_df)
+    })
+
+
+def process_prm_data(ms_file: str, concentration_file: str, output_file: str) -> pd.DataFrame:
+    """
+    Main processing function for paired ratio PRM analysis.
+    
+    Pipeline:
+    1. Load and normalize MS and concentration data
+    2. Calculate area ratios (heavy/light) for each measurement
+    3. Assign replicate groups based on replicate numbers
+    4. Perform linear regression per fragment per replicate group
+    5. Aggregate regression metrics across replicate groups
+    6. Save results to CSV
     
     Args:
-        skyline_file: Path to Skyline PRM export CSV
-        dilution_file: Path to peptide dilution concentration CSV  
-        output_file: Path for output CSV
+        ms_file: Path to Skyline export CSV
+        concentration_file: Path to concentration CSV
+        output_file: Path for output results
+    
+    Returns:
+        Final results DataFrame
     """
+    print("\n" + "="*70)
+    print("STEP 1: Loading Data")
+    print("="*70)
     
-    print("Loading Skyline PRM data...")
-    # Load Skyline data
-    trans_res_df_raw = pd.read_csv(skyline_file)
-    trans_res_df_raw.columns = trans_res_df_raw.columns.map(str.lower)
+    # Load MS data
+    ms_df = pd.read_csv(ms_file)
+    ms_df.columns = ms_df.columns.str.lower().str.strip()
+    print(f"Loaded MS data: {len(ms_df)} rows")
+    print(f"Unique peptides: {ms_df['peptide'].nunique()}")
+    print(f"Unique replicates: {ms_df['replicate'].nunique()}")
     
-    print(f"Loaded {trans_res_df_raw.shape[0]} rows of raw data")
-    print(f"Peptides found: {trans_res_df_raw.peptide.unique()}")
+    # Load concentration data
+    conc_df = pd.read_csv(concentration_file)
+    conc_df.columns = conc_df.columns.str.strip()
     
-    # Fix replicate naming
-    temp_df = trans_res_df_raw.copy()
-    temp_df['replicate'] = trans_res_df_raw['replicate'].apply(fix_dilution)
-    
-    # Group by peptide, replicate, product charge, fragment ion and filter for pairs
-    cols_to_group_by = ['peptide', 'replicate', 'product charge', 'fragment ion']
-    print(f"\nGroup counts: {temp_df.groupby(cols_to_group_by)['area'].count().value_counts()}")
-    
-    # Filter groups that contain exactly two elements (for area ratio calculation)
-    temp_df = temp_df.groupby(cols_to_group_by).filter(lambda g: g['area'].count() == 2)
-    print(f"After filtering for pairs: {temp_df.shape[0]} rows")
-    
-    # Calculate area ratios
-    print("Calculating area ratios...")
-    df_area_ratio = temp_df.groupby(cols_to_group_by).apply(grp_area_ratio_n_area_cols).reset_index()
-    print(f"Area ratios calculated: {df_area_ratio.shape[0]} rows")
-    
-    # Load peptide dilution concentrations
-    print("Loading peptide dilution concentrations...")
-    df_peptide_dilution_conc = pd.read_csv(dilution_file)
-
-    # Normalise peptide column name for compatibility across templates
-    peptide_col_candidates = [col for col in df_peptide_dilution_conc.columns
-                              if col.strip().lower() == 'peptides']
-    if not peptide_col_candidates:
-        raise ValueError("Peptide dilution file must contain a 'Peptides' column")
-    peptide_col = peptide_col_candidates[0]
-    if peptide_col != 'Peptides':
-        df_peptide_dilution_conc = df_peptide_dilution_conc.rename(columns={peptide_col: 'Peptides'})
-
-    # Detect dilution columns automatically to support datasets with fewer dilutions
-    dilution_pattern = re.compile(r'^D\d+\s*\(ng/mL\)$', re.IGNORECASE)
-    dilution_cols = []
-    rename_map = {}
-    for col in df_peptide_dilution_conc.columns:
-        if col == 'Peptides':
-            continue
-        col_normalised = ' '.join(col.split())
-        if dilution_pattern.match(col_normalised):
-            canonical_name = re.sub(r'NG/ML', 'ng/mL', col_normalised.upper())
-            dilution_cols.append(canonical_name)
-            if canonical_name != col:
-                rename_map[col] = canonical_name
-
-    if rename_map:
-        df_peptide_dilution_conc = df_peptide_dilution_conc.rename(columns=rename_map)
-
-    if not dilution_cols:
-        raise ValueError(
-            "Could not identify any dilution columns matching the pattern 'D# (ng/mL)' in the peptide dilution file"
-        )
-
-    # Ensure dilution columns are sorted numerically (D0, D1, ...)
-    def dilution_sort_key(name: str):
-        match = re.search(r'D(\d+)', name)
-        return int(match.group(1)) if match else float('inf')
-
-    dilution_cols = sorted(set(dilution_cols), key=dilution_sort_key)
-
-    # Reshape the dilution data
-    df_peptide_dilution_conc = df_peptide_dilution_conc.melt(
-        id_vars='Peptides',
-        value_vars=dilution_cols,
+    # Melt concentration data to long format
+    conc_long = pd.melt(
+        conc_df,
+        id_vars=['Peptides'],
         var_name='dilution',
         value_name='heavy_conc'
     )
+    conc_long['dilution'] = conc_long['dilution'].str.extract(r'(D\d+)')[0]
+    conc_long = conc_long.dropna()
+    print(f"Loaded concentrations: {len(conc_long)} dilution points")
     
-    # Clean up dilution column names
-    df_peptide_dilution_conc['dilution'] = df_peptide_dilution_conc['dilution'].str.extract(r'(D\d+)')
+    print("\n" + "="*70)
+    print("STEP 2: Calculate Area Ratios")
+    print("="*70)
     
-    # Create peptide_dilution_name column
-    peptide_dilution_name_col = 'peptide_dilution_name'
-    df_peptide_dilution_conc['peptide_dilution_name'] = df_peptide_dilution_conc['Peptides'] + '_' + df_peptide_dilution_conc['dilution']
+    # Add fragment with charge
+    ms_df['fragment_charged'] = ms_df.apply(get_fragment_ion_with_charge, axis=1)
     
-    print(f"Dilution data shape: {df_peptide_dilution_conc.shape}")
+    # Add replicate metadata
+    ms_df['replicate_number'] = ms_df['replicate'].apply(get_replicate_number)
+    ms_df['replicate_group'] = ms_df['replicate_number'].apply(get_replicate_group)
+    ms_df['dilution'] = ms_df['replicate'].apply(get_dilution_from_replicate)
     
-    # Add peptide_dilution_name to area ratio data
-    df_area_ratio[peptide_dilution_name_col] = df_area_ratio.apply(get_peptide_dilution_comb, axis=1)
+    # Calculate area ratios for each peptide/replicate/fragment
+    ratio_df = ms_df.groupby(
+        ['peptide', 'protein', 'replicate', 'replicate_number', 'replicate_group', 
+         'dilution', 'fragment_charged']
+    ).apply(calculate_area_ratio).reset_index()
     
-    # Merge area ratios with concentrations
-    print("Merging area ratios with concentrations...")
-    df_area_ratio_conc = pd.merge(df_area_ratio, right=df_peptide_dilution_conc, how='left',
-                                 on=peptide_dilution_name_col, suffixes=('', '_y'))
-    df_area_ratio_conc.drop(df_area_ratio_conc.filter(regex='_y$').columns, axis=1, inplace=True)
-    df_area_ratio_conc = df_area_ratio_conc.dropna(axis=0)  # drop nan
-
-    # Drop infinite values
-    df_area_ratio_conc.replace([np.inf, -np.inf], np.nan, inplace=True)
-    df_area_ratio_conc.dropna(subset=["area_ratio"], how="all", inplace=True)
+    print(f"Calculated {len(ratio_df)} area ratios")
+    print(f"Replicate groups found: {sorted(ratio_df['replicate_group'].unique())}")
     
-    print(f"After merging and cleaning: {df_area_ratio_conc.shape[0]} rows")
+    # Merge with concentrations
+    ratio_df = ratio_df.merge(
+        conc_long,
+        left_on=['peptide', 'dilution'],
+        right_on=['Peptides', 'dilution'],
+        how='left'
+    )
     
-    # Update fragment ion names to include charge for clarity in outputs
-    df_area_ratio_conc['fragment ion'] = df_area_ratio_conc.apply(get_fragment_ion_with_charge, axis=1)
-
-    # Create plot categories (now split by charge as well)
-    df_area_ratio_conc['plot_cat'] = df_area_ratio_conc.apply(get_rep_plot_cat, axis=1)
-    df_area_ratio_conc['plot_cat_grp'] = df_area_ratio_conc['plot_cat'].apply(lambda x: '_'.join(x.split('_')[:-1]))
-    df_area_ratio_conc['order_comp'] = df_area_ratio_conc['replicate'].apply(lambda x: x.split('_')[-1])
-    df_area_ratio_conc['rep_partial'] = df_area_ratio_conc['replicate'].apply(lambda x: '_'.join(x.split('_')[:-1]))
+    print("\n" + "="*70)
+    print("STEP 3: Linear Regression Per Fragment Per Replicate Group")
+    print("="*70)
     
-    # Get linear fit parameters
-    print("Calculating linear regression parameters...")
-    plot_cats = df_area_ratio_conc['plot_cat'].unique()
+    # Create regression category: peptide_fragment_replicateGroup
+    ratio_df['regression_cat'] = (
+        ratio_df['peptide'] + '_' + 
+        ratio_df['fragment_charged'] + '_' + 
+        ratio_df['replicate_group'].astype(str)
+    )
     
-    cats = []
-    r2s = []
-    intercepts = []
-    grads = []
-
-    for cat in plot_cats:
-        r2, intercept, grad = get_linear_fit(df_area_ratio_conc, cat)
-        cats.append(cat)
-        r2s.append(r2)
-        intercepts.append(intercept)
-        grads.append(grad)
-
-    df_plot_cat_fit_params = pd.DataFrame({
-        'plot_cat': cats,
-        'R2': r2s,
-        'intercept': intercepts,
-        'gradient': grads
-    })
-
-    # Merge fit parameters
-    df_area_ratio_conc_n_fit_params = pd.merge(df_area_ratio_conc,
-                                              right=df_plot_cat_fit_params,
-                                              on='plot_cat',
-                                              how='left')
+    # Perform regression for each category
+    regression_results = []
     
-    # Get fit parameter aggregates
-    print("Calculating fit parameter aggregates...")
-    temp = df_area_ratio_conc_n_fit_params.copy()
-    temp['fit_param_grp'] = temp.apply(get_fit_param_cat, axis=1)
-
-    cols_to_group_by = ['fit_param_grp']
-    df_fit_param_agg = temp.groupby(cols_to_group_by).apply(get_grp_fit_agg).reset_index()
-
-    df_w_fit_param_agg = pd.merge(left=temp, right=df_fit_param_agg, how='left', on=cols_to_group_by)
+    for cat in ratio_df['regression_cat'].unique():
+        cat_data = ratio_df[ratio_df['regression_cat'] == cat]
+        
+        # Extract metadata
+        peptide = cat_data['peptide'].iloc[0]
+        fragment = cat_data['fragment_charged'].iloc[0]
+        rep_group = cat_data['replicate_group'].iloc[0]
+        protein = cat_data['protein'].iloc[0]
+        
+        # Get regression data
+        x = cat_data['area_ratio'].values
+        y = cat_data['heavy_conc'].values
+        
+        # Fit regression
+        r2, intercept, slope = fit_linear_regression(x, y)
+        
+        regression_results.append({
+            'peptide': peptide,
+            'protein': protein,
+            'fragment': fragment,
+            'replicate_group': rep_group,
+            'r2': r2,
+            'slope': slope,
+            'intercept': intercept,
+            'n_points': len(cat_data)
+        })
     
-    print(f"Final output shape: {df_w_fit_param_agg.shape}")
+    regression_df = pd.DataFrame(regression_results)
+    print(f"Completed {len(regression_df)} regressions")
     
-    # Save output
-    print(f"Saving results to {output_file}...")
-    df_w_fit_param_agg.to_csv(output_file, index=True)
+    print("\n" + "="*70)
+    print("STEP 4: Aggregate Metrics Per Fragment")
+    print("="*70)
     
-    print("Processing complete!")
-    return df_w_fit_param_agg
-
-def main():
-    """Main function to run the processing pipeline."""
-    # Define file paths
-    data_dir = pathlib.Path("data/raw/peggy_2")
-    skyline_file = data_dir / "skyline raw data_heavy_di_expanded_cleaned_AHS_3+only_rmHL0.csv"
-    dilution_file = data_dir / "peptide_dilution_conc_peggy.csv"
-    output_file = "Akin_PRM_heavy_di_expanded_AHS_3+only_rmHL0_output.csv"
+    # Aggregate across replicate groups for each fragment
+    final_df = regression_df.groupby(['peptide', 'protein', 'fragment']).apply(
+        aggregate_regression_metrics
+    ).reset_index()
     
-    # Check if input files exist
-    if not skyline_file.exists():
-        print(f"Error: Skyline data file not found: {skyline_file}")
-        return
+    print(f"Final results: {len(final_df)} fragments")
     
-    if not dilution_file.exists():
-        print(f"Error: Dilution data file not found: {dilution_file}")
-        return
+    # Save results
+    final_df.to_csv(output_file, index=False)
+    print(f"\nResults saved to: {output_file}")
     
-    # Process the data
-    result_df = process_prm_data(str(skyline_file), str(dilution_file), output_file)
-    
-    # Print summary statistics
-    print(f"\n=== SUMMARY ===")
-    print(f"Output file: {output_file}")
-    print(f"Shape: {result_df.shape[0]} rows x {result_df.shape[1]} columns")
-    print(f"Columns: {list(result_df.columns)}")
-    print(f"Peptides processed: {result_df['peptide'].nunique()}")
-    print(f"Fragment ions: {result_df['fragment ion'].nunique()}")
-    
-    # Check for key regression columns
-    regression_cols = ['R2', 'intercept', 'gradient', 'mean_grad', 'stdv_grad', 'cov_grad', 
-                      'mean_intercept', 'stdv_intercept', 'cov_intercept', 'mean_r2', 'stdv_r2', 'cov_r2']
-    present_cols = [col for col in regression_cols if col in result_df.columns]
-    print(f"Regression/QC columns present: {len(present_cols)}/{len(regression_cols)}")
-    print(f"Present: {present_cols}")
-
-if __name__ == "__main__":
-    main()
+    return final_df
