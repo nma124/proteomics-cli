@@ -1,0 +1,57 @@
+# Proteomics PRM Analysis Configuration
+# This file defines how replicate names are parsed and grouped
+
+# Replicate Name Parsing
+# ----------------------
+replicate_parsing:
+  # Delimiter used in replicate names (e.g., "_" for "D1_2ul_24")
+  delimiter: "_"
+  
+  # Position of the replicate number (0-indexed from start, or -1 for last)
+  # Examples:
+  #   "D1_2ul_24" with position -1 extracts "24"
+  #   "001_D1_sample" with position 0 extracts "001"
+  number_position: -1
+  
+  # Position of the dilution identifier
+  # Examples:
+  #   "D1_2ul_24" with position 0 extracts "D1"
+  #   "sample_D1_24" with position 1 extracts "D1"
+  dilution_position: 0
+
+# Replicate Groups
+# ----------------
+# Define the number ranges for each replicate group
+# Each group will get an independent regression analysis
+# Format: [[start1, end1], [start2, end2], ...]
+
+replicate_groups:
+  # Default: 4 groups matching the standard experimental design
+  - [7, 14]    # Group 1
+  - [17, 24]   # Group 2
+  - [27, 34]   # Group 3
+  - [37, 44]   # Group 4
+
+# Example alternative configurations:
+# 
+# For simple sequential numbering (1-4, 5-8, 9-12):
+# replicate_groups:
+#   - [1, 4]
+#   - [5, 8]
+#   - [9, 12]
+#
+# For 3 replicate groups:
+# replicate_groups:
+#   - [1, 10]
+#   - [11, 20]
+#   - [21, 30]
+
+# Special Cases
+# -------------
+special_cases:
+  # Replicate names starting with these prefixes are treated specially
+  # Format: {prefix: dilution_value}
+  # Example: "col_test_7" -> treated as dilution "D0"
+  baseline_prefixes:
+    - "col"
+    - "control"

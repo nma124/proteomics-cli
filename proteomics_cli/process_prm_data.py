@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from sklearn import linear_model, metrics
 import warnings
+from proteomics_cli.config import PRMConfig
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -216,7 +217,8 @@ def aggregate_regression_metrics(grouped_df: pd.DataFrame) -> pd.Series:
     })
 
 
-def process_prm_data(ms_file: str, concentration_file: str, output_file: str) -> pd.DataFrame:
+def process_prm_data(ms_file: str, concentration_file: str, output_file: str, 
+                     config_file: str = None) -> pd.DataFrame:
     """
     Main processing function for paired ratio PRM analysis.
     
@@ -232,10 +234,16 @@ def process_prm_data(ms_file: str, concentration_file: str, output_file: str) ->
         ms_file: Path to Skyline export CSV
         concentration_file: Path to concentration CSV
         output_file: Path for output results
+        config_file: Optional path to YAML configuration file
     
     Returns:
         Final results DataFrame
     """
+    # Load configuration
+    config = PRMConfig(config_file)
+    if config_file:
+        config.print_summary()
+    
     print("\n" + "="*70)
     print("STEP 1: Loading Data")
     print("="*70)
@@ -269,10 +277,10 @@ def process_prm_data(ms_file: str, concentration_file: str, output_file: str) ->
     # Add fragment with charge
     ms_df['fragment_charged'] = ms_df.apply(get_fragment_ion_with_charge, axis=1)
     
-    # Add replicate metadata
-    ms_df['replicate_number'] = ms_df['replicate'].apply(get_replicate_number)
-    ms_df['replicate_group'] = ms_df['replicate_number'].apply(get_replicate_group)
-    ms_df['dilution'] = ms_df['replicate'].apply(get_dilution_from_replicate)
+    # Add replicate metadata using config
+    ms_df['replicate_number'] = ms_df['replicate'].apply(config.get_replicate_number)
+    ms_df['replicate_group'] = ms_df['replicate_number'].apply(config.get_replicate_group)
+    ms_df['dilution'] = ms_df['replicate'].apply(config.get_dilution)
     
     # Calculate area ratios for each peptide/replicate/fragment
     ratio_df = ms_df.groupby(

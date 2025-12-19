@@ -34,6 +34,9 @@ def main():
     parser.add_argument("--plot-dir",
                        default="plots",
                        help="Directory for plot outputs (default: plots)")
+    parser.add_argument("-c", "--config",
+                       default=None,
+                       help="Path to YAML configuration file (optional)")
     parser.add_argument("--version", 
                        action="version", 
                        version="PRM Paired Ratio Processing v3.0.0")
@@ -63,7 +66,12 @@ def main():
     
     try:
         # Process using paired ratio analysis
-        result_df = process_prm_data(str(ms_path), str(conc_path), str(output_path))
+        result_df = process_prm_data(
+            str(ms_path), 
+            str(conc_path), 
+            str(output_path),
+            config_file=args.config
+        )
         
         # Success message
         print("\n" + "="*70)

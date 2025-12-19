@@ -1,0 +1,18 @@
+# Example Configuration: Sequential Numbering (1-4, 5-8, 9-12)
+# Use this for experiments with simple sequential replicate numbering
+
+replicate_parsing:
+  delimiter: "_"
+  number_position: -1  # Last element is the number
+  dilution_position: 0  # First element is dilution (D0, D1, etc.)
+
+replicate_groups:
+  - [1, 4]    # Group 1: replicates 1-4
+  - [5, 8]    # Group 2: replicates 5-8
+  - [9, 12]   # Group 3: replicates 9-12
+
+special_cases:
+  baseline_prefixes:
+    - "col"
+    - "control"
+    - "blank"

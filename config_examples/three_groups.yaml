@@ -1,0 +1,17 @@
+# Example Configuration: Three Replicate Groups
+# Use this for experiments with 3 technical replicates instead of 4
+
+replicate_parsing:
+  delimiter: "_"
+  number_position: -1
+  dilution_position: 0
+
+replicate_groups:
+  - [1, 10]    # Group 1: replicates 1-10
+  - [11, 20]   # Group 2: replicates 11-20
+  - [21, 30]   # Group 3: replicates 21-30
+
+special_cases:
+  baseline_prefixes:
+    - "col"
+    - "control"

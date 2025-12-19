@@ -9,3 +9,6 @@ scikit-learn>=1.0.0
 
 # Visualization
 matplotlib>=3.3.0
+
+# Configuration
+PyYAML>=5.4.0
