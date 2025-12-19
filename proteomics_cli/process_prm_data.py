@@ -178,13 +178,13 @@ def aggregate_regression_metrics(grouped_df: pd.DataFrame) -> pd.Series:
     Computes mean, std, CV, and Q-test for R2, slope, and intercept.
     """
     # Convert to numeric and filter
-    r2_vals = pd.to_numeric(grouped_df['r2'], errors='coerce').dropna().values
+    r2_vals = pd.to_numeric(grouped_df['r2'], errors='coerce').dropna().astype(float).values
     r2_vals = r2_vals[np.isfinite(r2_vals)]
     
-    slope_vals = pd.to_numeric(grouped_df['slope'], errors='coerce').dropna().values
+    slope_vals = pd.to_numeric(grouped_df['slope'], errors='coerce').dropna().astype(float).values
     slope_vals = slope_vals[np.isfinite(slope_vals)]
     
-    intercept_vals = pd.to_numeric(grouped_df['intercept'], errors='coerce').dropna().values
+    intercept_vals = pd.to_numeric(grouped_df['intercept'], errors='coerce').dropna().astype(float).values
     intercept_vals = intercept_vals[np.isfinite(intercept_vals)]
     
     def safe_stats(vals):
